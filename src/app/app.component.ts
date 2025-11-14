@@ -1,7 +1,7 @@
-import { Component } from '@angular/core'
-import { RouterOutlet } from '@angular/router'
-import { VideoProcessor } from '@pexip/media-processor'
-import { getVideoProcessor } from './video-processor'
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { VideoProcessor } from '@pexip/media-processor';
+import { getVideoProcessor } from './video-processor';
 
 @Component({
   selector: 'app-root',
@@ -11,21 +11,21 @@ import { getVideoProcessor } from './video-processor'
   styleUrl: './app.component.scss'
 })
 export class AppComponent {
-  title = 'media-processor-example'
-  processedStream: MediaStream | null = null
-  effect = 'none'
+  title = 'media-processor-example';
+  processedStream: MediaStream | null = null;
+  effect = 'none';
+  effects = ['none', 'blur', 'overlay'];
 
-  effects = ['none', 'blur', 'overlay']
-
-  private localStream: MediaStream | null = null
-  private currentVideoProcessor: VideoProcessor | null = null
+  private localStream: MediaStream | null = null;
+  private currentVideoProcessor: VideoProcessor | null = null;
 
   handleChangeEffect = async (event: any): Promise<void> => {
-    console.log('Changing effect', event.target.value)
-    this.currentVideoProcessor?.close()
-    if (this.localStream != null) {
-      const videoProcessor = await getVideoProcessor(event.target.value)
-      this.processedStream = await videoProcessor.process(this.localStream)
+    console.log('Changing effect', event.target.value);
+    this.currentVideoProcessor?.close();
+
+    if(this.localStream !== null) {
+      this.currentVideoProcessor = await getVideoProcessor(event.target.value);
+      this.processedStream = await this.currentVideoProcessor.process(this.localStream);
     }
   }
 
@@ -35,18 +35,18 @@ export class AppComponent {
         video: true
       })
       .then((stream) => {
-        this.localStream = stream
-        this.processedStream = stream
+        this.localStream = stream;
+        this.processedStream = stream;
       })
       .catch((error) => {
-        console.error('mediaDevice.getUserMedia() error:', error)
-        return
-      })
+        console.error('mediaDevice.getUserMedia() error:', error);
+        return;
+      });
   }
 
   ngOnDestroy() {
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => track.stop())
+    if(this.localStream) {
+      this.localStream.getTracks().forEach((track) => track.stop());
     }
   }
 }
