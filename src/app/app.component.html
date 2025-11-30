@@ -1,5 +1,5 @@
 <main class="main">
-  <select (change)="handleChangeEffect($event)">
+  <select (change)="handleChangeEffect($event)" id="selectEffect" [value]="effect">
     <option value="none">
       No Effect
     </option>
@@ -12,6 +12,4 @@
   </select>
   <video [srcObject]="processedStream" autoplay playsInline></video>
 </main>
-
-
 <router-outlet />
