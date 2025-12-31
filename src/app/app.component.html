@@ -1,15 +1,10 @@
 <main class="main">
-  <select (change)="handleChangeEffect($event)" id="selectEffect" [value]="effect">
-    <option value="none">
-      No Effect
-    </option>
-    <option value="blur">
-      Blur Effect
-    </option>
-    <option value="overlay">
-      Background Replacement Effect
-    </option>
+  <select (change)="handleChangeEffect($event)">>
+    @for (option of effects; track option) {
+      <option [value]="option.value"
+            [selected]="effect === option.value">{{ option.viewValue }}</option>
+    }
   </select>
-  <video [srcObject]="processedStream" autoplay playsInline></video>
+  <video [srcObject]="processedStream" autoplay playsInline #localVideoElement></video>
 </main>
 <router-outlet />
