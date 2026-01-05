@@ -30,8 +30,8 @@ export const getVideoProcessor = async (
   effect: 'none' | 'blur' | 'overlay'
 ): Promise<VideoProcessor> => {
   // Provide a delegate factory as expected by the API: () => Delegate.
-  // We return a string identifier at runtime; cast to 'any' to satisfy TypeScript without importing internal types.
-  const delegate: () => any = () => (isChromium() ? 'GPU' : 'CPU');
+  // We return a string identifier at runtime; cast to 'GPU' | 'CPU' to satisfy TypeScript without importing internal types.
+  const delegate: () => 'GPU' | 'CPU' = () => (isChromium() ? 'GPU' : 'CPU');
   // Setting the path to that `@mediapipe/tasks-vision` assets
   // It will be passed direct to
   // [FilesetResolver.forVisionTasks()](https://ai.google.dev/edge/api/mediapipe/js/tasks-vision.filesetresolver#filesetresolverforvisiontasks)
