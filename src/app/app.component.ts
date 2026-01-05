@@ -62,7 +62,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   private closeAll(): void {
-    // this.stopStream(this.processedStream);
     this.stopStream(this.localStream);
     try {
       this.currentVideoProcessor?.close();
@@ -74,7 +73,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     try {
       for (const [effect, processor] of this.processorCache.entries()) {
         try {
-          console.log('Closing processor from cache with id: ', effect.id);
           processor.close?.();
         } catch {
           console.warn('Error closing processor', processor);
@@ -116,8 +114,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           console.error('Error processing video stream:', err);
           this.processedStream = null;
         }
-      } else {
-        this.processedStream = this.localStream;
       }
     } catch (err) {
       console.error('Error applying effect:', err);
@@ -184,8 +180,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (ready !== "loaded") {
       return;
     }
-    console.log('Video element ready, calling this.callGetUserMedia()');
     await this.callGetUserMedia();
+    await this.applyEffect(this.selectedEffect);
+    return;
   }
 
   ngOnDestroy() {
