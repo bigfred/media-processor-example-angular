@@ -37,10 +37,25 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private currentVideoProcessor: VideoProcessor | null = null;
   private effectChangeTimer: number | null = null;
 
-  @HostListener('window:beforeunload')
-  @HostListener('window:unload')
-  handleWindowClose() {
-    this.closeAll();
+  @HostListener('window:beforeunload', ['$event'])
+  @HostListener('window:pagehide', ['$event'])
+  handleWindowClose($event: BeforeUnloadEvent | PageTransitionEvent): void {
+    if($event.type === 'beforeunload') {
+      console.log('beforeunload event detected, closing streams and processors');
+      this.closeAll();
+      return;
+    }
+    if($event.type === 'pagehide' && !('persisted' in $event)) {
+      console.log('pagehide event detected, persisted not in event, closing streams and processors');
+      this.closeAll();
+      return;
+    }
+    if($event.type === 'pagehide' && ('persisted' in $event && !$event.persisted)) {
+      console.log('pagehide event detected, page not persisted, closing streams and processors');
+      this.closeAll();
+      return;
+    }
+    return;
   }
 
   private stopStream(stream: MediaStream | null): void {
@@ -64,14 +79,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private closeAll(): void {
     this.stopStream(this.localStream);
     try {
-      this.currentVideoProcessor?.close();
+      if(this.currentVideoProcessor !== null) {
+        this.currentVideoProcessor?.close();
+      }
     } catch {
       console.warn('Error closing current processor', this.currentVideoProcessor);
     }
     this.currentVideoProcessor = null;
     // Close and clear cached processors
     try {
-      for (const [effect, processor] of this.processorCache.entries()) {
+      for (const [, processor] of this.processorCache.entries()) {
         try {
           processor.close?.();
         } catch {
@@ -99,7 +116,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.effectChangeTimer) {
       window.clearTimeout(this.effectChangeTimer);
     }
-    this.applyEffect(this.selectedEffect);
+    await this.applyEffect(this.selectedEffect);
   }
 
   private async applyEffect(effect: SelectEffectType): Promise<void> {
@@ -135,11 +152,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return processor;
   }
 
-  get playbackVideo(): HTMLVideoElement {
-    return this.localVideoElement?.nativeElement!;
+  get playbackVideo(): HTMLVideoElement | null {
+    return this.localVideoElement?.nativeElement ? this.localVideoElement.nativeElement : null;
   }
 
   async initialize(): Promise<void | "loaded"> {
+    if (!this.playbackVideo) {
+      return;
+    }
     this.playbackVideo.src = '';
     this.playbackVideo.controls = false;
     try {
@@ -149,7 +169,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     }
     this.playbackVideo.onloadeddata = async (_event) => {
       try {
-        await this.playbackVideo.play();
+        await this.playbackVideo?.play();
       } catch (err) {
         console.warn(err);
       }
@@ -158,6 +178,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
   async callGetUserMedia(): Promise<void> {
     try {
+      if(!this.playbackVideo) {
+        return;
+      }
       const srcObject = await navigator.mediaDevices.getUserMedia({ video: true });
       if (srcObject) {
         this.localStream = this.processedStream = srcObject;
