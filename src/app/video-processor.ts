@@ -54,15 +54,12 @@ export const getVideoProcessor = async (
   const getTrackProcessor = () => {
     // Feature detection if the browser has the `MediaStreamProcessor` API
     if ('MediaStreamTrackProcessor' in window) {
-      return createVideoTrackProcessor(); // Using the latest Streams API
+      return createVideoTrackProcessor();
     }
-    return createVideoTrackProcessorWithFallback(); // Using the fallback implementation
+    return createVideoTrackProcessorWithFallback();
   };
 
   const processor = createVideoProcessor([transformer], getTrackProcessor());
-
-  // Start the processor
   await processor.open();
-
   return processor;
 };
