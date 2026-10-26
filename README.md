@@ -69,11 +69,3 @@ And now to create the package itself:
 ```bash
 $ npm run build
 ```
-
-## Update the segmentation files
-
-Some files should be served from the public folder. If you want to update them, run the following command:
-
-```
-$ npm run update-selfie-segmenter
-```

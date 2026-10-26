@@ -1,7 +1,7 @@
 import { Component, HostListener, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { VideoProcessor } from '@pexip/media-processor';
-import { getVideoProcessor } from './video-processor';
+import { getVideoProcessor, VideoEffectTransformer } from './video-processor';
 type SelectEffectType = {
     id: 0 | 1 | 2;
     name: 'none' | 'blur' | 'overlay';
@@ -33,9 +33,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   selectedEffect: SelectEffectType = { name: 'none', id: 0 };
   private localStream: MediaStream | null = null;
   processedStream: MediaStream | null = null;
-  private processorCache = new Map<SelectEffectType, VideoProcessor>();
-  private currentVideoProcessor: VideoProcessor | null = null;
-  private effectChangeTimer: number | null = null;
+  // One processor for the component's lifetime; effects are switched on its transformer
+  private videoProcessor: VideoProcessor | null = null;
+  private transformer: VideoEffectTransformer | null = null;
 
   @HostListener('window:beforeunload', ['$event'])
   @HostListener('window:pagehide', ['$event'])
@@ -78,78 +78,56 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private closeAll(): void {
     this.stopStream(this.localStream);
-    try {
-      if(this.currentVideoProcessor !== null) {
-        this.currentVideoProcessor?.close();
-      }
-    } catch {
-      console.warn('Error closing current processor', this.currentVideoProcessor);
-    }
-    this.currentVideoProcessor = null;
-    // Close and clear cached processors
-    try {
-      for (const [, processor] of this.processorCache.entries()) {
-        try {
-          processor.close?.();
-        } catch {
-          console.warn('Error closing processor', processor);
-        }
-        try {
-          processor.destroy?.();
-        } catch {
-          console.warn('Error destroying processor', processor);
-        }
-      }
-    } catch {
-      console.warn('Error closing cached processors');
-    }
-    this.processorCache.clear();
+    this.stopStream(this.processedStream);
+    // Fire-and-forget: closeAll runs from sync unload handlers
+    void this.destroyProcessor();
     this.processedStream = this.localStream = null;
     this.effect = this.effects[0].value;
   }
 
-
-  async handleChangeEffect(e: Event): Promise<void> {
-    this.effect = (e.target as HTMLSelectElement).value !== this.selectedEffect.name ? (e.target as HTMLSelectElement).value : this.effects[0].value;
-    this.selectedEffect = { name: this.effect as 'none' | 'blur' | 'overlay', id: this.effect === 'none' ? 0 : this.effect === 'blur' ? 1 : 2 };
-    await this.currentVideoProcessor?.destroy();
-    if (this.effectChangeTimer) {
-      window.clearTimeout(this.effectChangeTimer);
+  // close() leaves the segmenter's Worker alive, so destroy() (which closes
+  // first, then terminates the worker) is the only full teardown
+  private async destroyProcessor(): Promise<void> {
+    const processor = this.videoProcessor;
+    this.videoProcessor = this.transformer = null;
+    if (!processor) {
+      return;
     }
-    await this.applyEffect(this.selectedEffect);
-  }
-
-  private async applyEffect(effect: SelectEffectType): Promise<void> {
-    this.effect = effect.name;
-    this.selectedEffect = effect;
     try {
-      this.currentVideoProcessor = await this.getOrCreateProcessor(effect);
-      if (this.localStream && this.currentVideoProcessor) {
-        try {
-          this.processedStream = await this.currentVideoProcessor.process(this.localStream);
-        } catch (err) {
-          console.error('Error processing video stream:', err);
-          this.processedStream = null;
-        }
-      }
-    } catch (err) {
-      console.error('Error applying effect:', err);
-    } finally {
-      if (this.effectChangeTimer) {
-        window.clearTimeout(this.effectChangeTimer);
-        this.effectChangeTimer = null;
-      }
+      await processor.destroy();
+    } catch {
+      console.warn('Error destroying processor', processor);
     }
   }
 
-  private async getOrCreateProcessor(effect: SelectEffectType): Promise<VideoProcessor> {
-    const cached = this.processorCache.get(effect);
-    if(cached) {
-      return cached;
+  handleChangeEffect(e: Event): void {
+    const name = (e.target as HTMLSelectElement).value as SelectEffectType['name'];
+    if (name === this.selectedEffect.name) {
+      return;
     }
-    const processor = await getVideoProcessor(effect.name);
-    this.processorCache.set(effect, processor);
-    return processor;
+    this.effect = name;
+    this.selectedEffect = { name, id: name === 'none' ? 0 : name === 'blur' ? 1 : 2 };
+    // Takes effect on the next frame; the segmenter worker opens lazily on the first blur/overlay frame
+    if (this.transformer) {
+      this.transformer.effects = name;
+    }
+  }
+
+  private async startProcessing(effect: SelectEffectType): Promise<void> {
+    if (!this.localStream) {
+      return;
+    }
+    try {
+      const { processor, transformer } = await getVideoProcessor(effect.name);
+      this.videoProcessor = processor;
+      this.transformer = transformer;
+      // Pick up any change made while the processor was being created
+      transformer.effects = this.selectedEffect.name;
+      this.processedStream = await processor.process(this.localStream);
+    } catch (err) {
+      console.error('Error starting video processing:', err);
+      this.processedStream = this.localStream;
+    }
   }
 
   get playbackVideo(): HTMLVideoElement | null {
@@ -204,7 +182,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return;
     }
     await this.callGetUserMedia();
-    await this.applyEffect(this.selectedEffect);
+    await this.startProcessing(this.selectedEffect);
     return;
   }
 

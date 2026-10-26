@@ -26,9 +26,11 @@ const isChromium = () => {
   return false;
 };
 
+export type VideoEffectTransformer = ReturnType<typeof createCanvasTransform>;
+
 export const getVideoProcessor = async (
   effect: 'none' | 'blur' | 'overlay'
-): Promise<VideoProcessor> => {
+): Promise<{ processor: VideoProcessor; transformer: VideoEffectTransformer }> => {
   // Provide a delegate factory as expected by the API: () => Delegate.
   // We return a string identifier at runtime; cast to 'GPU' | 'CPU' to satisfy TypeScript without importing internal types.
   const delegate: () => 'GPU' | 'CPU' = () => (isChromium() ? 'GPU' : 'CPU');
@@ -61,5 +63,6 @@ export const getVideoProcessor = async (
 
   const processor = createVideoProcessor([transformer], getTrackProcessor());
   await processor.open();
-  return processor;
+  // The transformer is returned so the caller can switch effects in place via `transformer.effects`
+  return { processor, transformer };
 };
